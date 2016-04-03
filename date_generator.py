@@ -10,19 +10,28 @@ from one_hot import dense_to_one_hot
 START_DATE = datetime.strptime('1950-01-01', '%Y-%m-%d')
 END_DATE = datetime.strptime('2050-12-31', '%Y-%m-%d')
 FORMAT_TOKENS = ('%a', '%A', '%d', '%b', '%B', '%m', '%y', '%Y')
-INPUT_FORMATS = ['%Y %B, %d', '%B %d, %Y', '%b %d %y']
-OUTPUT_FORMAT = '%Y-%m-%d'
+INPUT_FORMATS = ['%Y %B, %d',
+                 '%B %d, %Y',
+                 '%b %d %y',
+                 '%Y-%m-%d',
+                 '%Y/%m/%d',
+                 '%y-%m-%d']
 
+INPUT_FORMATS = ['%Y%m%d']
+
+OUTPUT_FORMAT = '%Y%m%d'
+
+GO_SYMBOL = 'GO'
 PAD_SYMBOL = 'PAD'
 INPUT_LETTERS = string.ascii_lowercase + string.digits + ',- .:/'
 INPUT_SYMBOLS = list(INPUT_LETTERS) + [PAD_SYMBOL]
 INPUT_SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(INPUT_SYMBOLS))
-INPUT_SEQ_LEN = 20
+INPUT_SEQ_LEN = 8
 
-OUTPUT_LETTERS = string.digits + '-'
-OUTPUT_SYMBOLS = list(OUTPUT_LETTERS)
+OUTPUT_LETTERS = string.digits  # + '-'
+OUTPUT_SYMBOLS = [GO_SYMBOL] + list(OUTPUT_LETTERS)
 OUTPUT_SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(OUTPUT_SYMBOLS))
-OUTPUT_SEQ_LEN = 10
+OUTPUT_SEQ_LEN = 8 + 1
 
 
 def random_datetime(start=START_DATE, end=END_DATE):
@@ -44,10 +53,11 @@ def random_date_format(date):
     return date.strftime(date_format)
 
 
-def encode_sequences(sequences, symbol_to_idx, sequence_len, pad_symbol=PAD_SYMBOL, reverse=False):
+def encode_sequences(letter_sequences, symbol_to_idx, sequence_len, go_symbol=None,
+                     pad_symbol=PAD_SYMBOL, reverse=False):
     """
-    Given a set of symbols and their index/label encoded the given list of sequences
-    input numeric target sequences.
+    Given a set of symbols and their index/label encoded the given
+    list of string sequences as numeric sequences.
     """
 
     if pad_symbol is None:
@@ -55,14 +65,24 @@ def encode_sequences(sequences, symbol_to_idx, sequence_len, pad_symbol=PAD_SYMB
     else:
         pad_idx = symbol_to_idx[pad_symbol]
 
-    assert sequence_len >= len(max(sequences, key=len))
+    if go_symbol is None:
+        go_idx = None
+    else:
+        go_idx = symbol_to_idx[go_symbol]
 
-    encoded_sequences = np.full((len(sequences), sequence_len),
+    assert sequence_len >= len(max(letter_sequences, key=len)) + 0 if go_idx is None else 1
+
+    encoded_sequences = np.full((len(letter_sequences), sequence_len),
                                 fill_value=pad_idx,
                                 dtype=np.int32)
 
-    for i, sequence in enumerate(sequences):
+    for i, sequence in enumerate(letter_sequences):
         idxs = [symbol_to_idx[symbol] for symbol in sequence]
+
+        # Insert the idx of the GO symbol in the beginning of the sequence.
+        if go_idx is not None:
+            idxs.insert(0, go_idx)
+
         if reverse:
             encoded_sequences[i, -len(idxs):] = idxs[::-1]
         else:
@@ -81,14 +101,17 @@ def generate_training_data(batch_size=32):
 
         input_sequences = encode_sequences(input_date_strings,
                                            symbol_to_idx=INPUT_SYMBOL_TO_IDX,
-                                           sequence_len=INPUT_SEQ_LEN)
+                                           sequence_len=INPUT_SEQ_LEN,
+                                           go_symbol=None,
+                                           reverse=True)
         input_sequences = dense_to_one_hot(input_sequences,
                                            num_classes=len(INPUT_SYMBOL_TO_IDX))
 
         target_sequences = encode_sequences(target_date_strings,
                                             symbol_to_idx=OUTPUT_SYMBOL_TO_IDX,
                                             sequence_len=OUTPUT_SEQ_LEN,
-                                            pad_symbol=None)
+                                            go_symbol=GO_SYMBOL,
+                                            pad_symbol=None)  # No padding since fixed length
         target_sequences = dense_to_one_hot(target_sequences,
                                             num_classes=len(OUTPUT_SYMBOL_TO_IDX))
 
