@@ -1,32 +1,56 @@
+import sys
 import random
 import string
+import io
+from contextlib import redirect_stdout
 
 from data import encode_sequences, dense_to_one_hot
 
 
 GO_SYMBOL = 'G'
 PAD_SYMBOL = '_'
-LETTERS = string.digits + string.ascii_lowercase + '+-=():\n'
+LETTERS = string.digits + string.ascii_lowercase + ' +-=():\n'
 SYMBOLS = [PAD_SYMBOL, GO_SYMBOL] + list(LETTERS)
 SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(SYMBOLS))
 
-INPUT_SEQ_LEN = 50
+INPUT_SEQ_LEN = 32
 OUTPUT_SEQ_LEN = 10
+MAX_NUM_LEN = 2
 
 
-def random_digit(max_len):
-    return random.randint(0, 10 ** random.randint(1, max_len))
+class ProgramGenerator():
 
+    def __init__(self, batch_size, number_len=2):
+        self.number_len = number_len
+        self.batch_size = batch_size
 
-def generate_program():
-    return "print({0}+{1})".format(random_digit(2), random_digit(2))
+    def random_digit(self):
+        return random.randint(0, 10 ** random.randint(1, self.number_len))
 
+    def generate_program(self):
+        program = \
+            ["def f():",
+             "  print({0}+{1})".format(self.random_digit(), self.random_digit()),
+             "f()"]
+        return "\n".join(program)
 
-def generate_data(batch_size=32):
+    def increase_difficulty(self):
+        if self.number_len < MAX_NUM_LEN:
+            self.number_len += 1
 
-    while True:
-        programs = [generate_program() for _ in range(batch_size)]
-        results = [eval(program) for program in programs]
+    def has_max_difficulty(self):
+        return self.number_len == MAX_NUM_LEN
+
+    def next_batch(self):
+
+        programs = [self.generate_program() for _ in range(self.batch_size)]
+
+        # Execute the programs to get the target
+        results = []
+        for program in programs:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                exec(program)
+                results.append(buf.getvalue()[:-1])
 
         input_sequences = encode_sequences(programs,
                                            symbol_to_idx=SYMBOL_TO_IDX,
@@ -46,4 +70,4 @@ def generate_data(batch_size=32):
         target_sequences = dense_to_one_hot(target_sequences,
                                             num_classes=len(SYMBOL_TO_IDX))
 
-        yield input_sequences, target_sequences
+        return input_sequences, target_sequences

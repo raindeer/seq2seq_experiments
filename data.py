@@ -22,6 +22,7 @@ def encode_sequences(letter_sequences, symbol_to_idx, sequence_len, pad_symbol=N
                                 dtype=np.int32)
 
     for i, sequence in enumerate(letter_sequences):
+
         idxs = [symbol_to_idx[symbol] for symbol in sequence]
 
         if reverse:

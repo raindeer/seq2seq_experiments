@@ -10,22 +10,33 @@ INPUT_LETTERS = string.digits + '+'
 SYMBOLS = [PAD_SYMBOL, GO_SYMBOL] + list(INPUT_LETTERS)
 SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(SYMBOLS))
 
-MAX_NUM_DIGITS = 5
-INPUT_SEQ_LEN = MAX_NUM_DIGITS * 2 + 3
-OUTPUT_SEQ_LEN = MAX_NUM_DIGITS + 2
+MAX_NUM_LEN = 5
+INPUT_SEQ_LEN = MAX_NUM_LEN * 2 + 3
+OUTPUT_SEQ_LEN = MAX_NUM_LEN + 2
 
 
-def random_digit():
-    return random.randint(0, 10 ** random.randint(1, MAX_NUM_DIGITS))
+class AdditionGenerator():
 
+    def __init__(self, batch_size, number_len=2):
+        self.number_len = number_len
+        self.batch_size = batch_size
 
-def generate_data(batch_size=32):
+    def random_digit(self):
+        return random.randint(0, 10 ** random.randint(1, self.number_len))
 
-    while True:
+    def increase_difficulty(self):
+        if self.number_len < MAX_NUM_LEN:
+            self.number_len += 1
 
-        ints_batch = [(random_digit(), random_digit()) for _ in range(batch_size)]
+    def has_max_difficulty(self):
+        return self.number_len == MAX_NUM_LEN
 
+    def next_batch(self):
+
+        ints_batch = [(self.random_digit(),
+                       self.random_digit()) for _ in range(self.batch_size)]
         int_sum_batch = [sum(ints) for ints in ints_batch]
+
         addition_strings = ["{0}+{1}".format(*ints) for ints in ints_batch]
         sum_strings = [str(s) for s in int_sum_batch]
 
@@ -48,4 +59,4 @@ def generate_data(batch_size=32):
         target_sequences = dense_to_one_hot(target_sequences,
                                             num_classes=len(SYMBOL_TO_IDX))
 
-        yield input_sequences, target_sequences
+        return input_sequences, target_sequences

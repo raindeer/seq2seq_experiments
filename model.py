@@ -9,7 +9,7 @@ from tensorflow.models.rnn import seq2seq, rnn, rnn_cell
 DEFAULT_LEARNING_RATE = 0.01
 
 
-class Seq2SeqModel():
+class Seq2SeqModel:
 
     def __init__(self,
                  session,
@@ -133,6 +133,35 @@ class Seq2SeqModel():
             if train_loss >= prev_loss:
                 self.set_learning_rate(self.learning_rate.eval() * lr_decay)
                 print("Decreasing LR to {:.5f}".format(self.learning_rate.eval()))
+
+            prev_loss = train_loss
+
+    def fit_curr(self,
+                 data_generator,
+                 num_epochs=30,
+                 batches_per_epoch=256,
+                 lr_decay=0.8):
+
+        prev_loss = np.inf
+
+        for e in range(num_epochs):
+            for b in range(batches_per_epoch):
+                start = time.time()
+
+                inputs, targets = data_generator.next_batch()
+                train_loss = self._fit_batch(inputs, targets)
+
+                end = time.time()
+
+            print("{}/{} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
+                  .format(b, batches_per_epoch, e, train_loss, end - start))
+
+            if train_loss >= prev_loss and data_generator.has_max_difficulty():
+                self.set_learning_rate(self.learning_rate.eval() * lr_decay)
+                print("Decreasing LR to {:.5f}".format(self.learning_rate.eval()))
+            elif train_loss < 0.1:
+                data_generator.increase_difficulty()
+                print("Increasing difficulty")
 
             prev_loss = train_loss
 
