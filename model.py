@@ -138,32 +138,40 @@ class Seq2SeqModel:
 
     def fit_curr(self,
                  data_generator,
+                 testing_model,
                  num_epochs=30,
                  batches_per_epoch=256,
-                 lr_decay=0.8):
+                 lr_decay=0.8,
+                 num_val_batches=128):
 
-        prev_loss = np.inf
+        prev_error_rate = np.inf
+        val_error_rate = np.inf
+
+        val_set = [data_generator.next_batch() for _ in range(num_val_batches)]
 
         for e in range(num_epochs):
-            for b in range(batches_per_epoch):
-                start = time.time()
 
+            start = time.time()
+            for b in range(batches_per_epoch):
                 inputs, targets = data_generator.next_batch()
                 train_loss = self._fit_batch(inputs, targets)
+            end = time.time()
 
-                end = time.time()
+            val_error_rate = testing_model.validate(val_set)
 
-            print("{}/{} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
-                  .format(b, batches_per_epoch, e, train_loss, end - start))
+            print("Epoch {}: train_loss = {:.3f}, val_error_rate = {:.3f}, time/epoch = {:.3f}"
+                  .format(e, train_loss, val_error_rate, end - start))
 
-            if train_loss >= prev_loss and data_generator.has_max_difficulty():
+            if val_error_rate >= prev_error_rate and data_generator.has_max_difficulty():
                 self.set_learning_rate(self.learning_rate.eval() * lr_decay)
                 print("Decreasing LR to {:.5f}".format(self.learning_rate.eval()))
-            elif train_loss < 0.1:
-                data_generator.increase_difficulty()
-                print("Increasing difficulty")
 
-            prev_loss = train_loss
+            elif val_error_rate < 0.05:
+                print("Increasing difficulty")
+                data_generator.increase_difficulty()
+                val_set = [data_generator.next_batch() for _ in range(num_val_batches)]
+
+            prev_error_rate = val_error_rate
 
     def predict(self, encoder_input_values, go_symbol_idx=0):
 
@@ -185,3 +193,18 @@ class Seq2SeqModel:
         symbol_probs = np.transpose(symbol_probs, (1, 0, 2))
 
         return symbol_probs
+
+    def validate(self, val_set):
+
+        num_correct = 0
+        num_samples = 0
+
+        for batch in val_set:
+            x, y = batch
+            target = np.argmax(y, axis=2)
+            prediction = np.argmax(self.predict(x), axis=2)[:, :-1]
+
+            num_correct += sum([int(np.all(t == p)) for t, p in zip(target, prediction)])
+            num_samples += len(x)
+
+        return 1.0 - float(num_correct) / num_samples
