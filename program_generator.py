@@ -5,18 +5,18 @@ from contextlib import redirect_stdout
 from random import choice, random, randint
 from data import encode_sequences, dense_to_one_hot
 
-
 GO_SYMBOL = 'G'
 PAD_SYMBOL = '_'
 LETTERS = string.digits + string.ascii_lowercase + ' +-=():<>\n'
-SYMBOLS = [PAD_SYMBOL, GO_SYMBOL] + list(LETTERS)
+SYMBOLS = [GO_SYMBOL, PAD_SYMBOL] + list(LETTERS)
+#SYMBOLS = [PAD_SYMBOL, GO_SYMBOL] + list(LETTERS)
 SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(SYMBOLS))
 
-INPUT_SEQ_LEN = 100
-OUTPUT_SEQ_LEN = 10
+INPUT_SEQ_LEN = 70
+OUTPUT_SEQ_LEN = 6
 
-MAX_NUM_LENGTH = 3
-MAX_PROGRAM_LENGTH = 4
+MAX_NUM_LENGTH = 2
+MAX_PROGRAM_LENGTH = 3
 
 COMPARATORS = ('<', '>')
 OPERATORS = ('+', '-')
@@ -27,21 +27,17 @@ def if_operation(variables, nesting, difficulty):
     compare_variable = choice(list(variables))
     comparator = choice(COMPARATORS)
     compare_value = random_digit(difficulty)
-    change_variable = choice(list(variables))
-    change_value = random_digit(difficulty)
-    operator = choice(OPERATORS)
+    #change_variable = choice(list(variables))
+    #change_value = random_digit(difficulty)
+    #operator = choice(OPERATORS)
     code = 'if {0}{1}{2}:'.format(compare_variable,
                                   comparator,
-                                  compare_value,
-                                  change_variable,
-                                  operator,
-                                  change_value)
+                                  compare_value)
     nesting += 1
     return code, nesting
 
 
 def assign_operation(variables, nesting, num_len):
-
     variable = choice(VARIABLE_NAMES)
     variables.add(variable)
     value = random_digit(num_len)
@@ -50,7 +46,6 @@ def assign_operation(variables, nesting, num_len):
 
 
 def add_or_sub_operation(variables, nesting, num_len):
-
     variable = choice(list(variables))
     operator = choice(OPERATORS)
     value = random_digit(num_len)
@@ -68,7 +63,8 @@ def print_operation(variables, nesting, num_len):
     code = 'print({0})'.format(operator.join(list(variables)))
     return code, nesting
 
-OPERATIONS = (if_operation, add_or_sub_operation)
+
+OPERATIONS = (add_or_sub_operation, if_operation, assign_operation)
 
 
 def generate_program(num_len, length):
@@ -76,47 +72,60 @@ def generate_program(num_len, length):
     nesting = 0
 
     lines = []
-    num_lines = randint(1, length)
-    code, _ = assign_operation(variables, nesting, num_len)
-    lines.append(code)
+    lines.append(assign_operation(variables, nesting, num_len)[0])
 
-    for i in range(num_lines):
-        if nesting == 0:
-            operation = choice(OPERATIONS + (assign_operation,))
-        else:
-            operation = choice(OPERATIONS)
+    if length > 0:
+        num_lines = randint(1, length)
+        for i in range(num_lines):
+            if num_lines <= 1:
+                operation = add_or_sub_operation
+            elif nesting == 0:
+                operation = choice(OPERATIONS)
+            else:
+                operation = choice((add_or_sub_operation, if_operation))
 
-        code, new_nesting = operation(variables, nesting, num_len)
-        lines.append(''.join(['  '] * nesting) + code)
-        if nesting == new_nesting and random() < 0.5:
-            nesting -= 1
-        nesting = new_nesting
+            code, new_nesting = operation(variables, nesting, num_len)
+            lines.append(''.join(['  '] * nesting) + code)
+            if nesting == new_nesting and random() < 0.5:
+                nesting -= 1
+            nesting = new_nesting
 
-    if nesting > 0:
-        code, new_nesting = add_or_sub_operation(variables, nesting, num_len)
-        lines.append(''.join(['  '] * nesting) + code)
+        if nesting > 0:
+            code, new_nesting = add_or_sub_operation(variables, nesting, num_len)
+            lines.append(''.join(['  '] * nesting) + code)
 
-    code, _ = print_operation(variables, nesting, num_len)
-    lines.append(code)
+    lines.append(print_operation(variables, nesting, num_len)[0])
 
     return '\n'.join(lines)
 
 
 def random_digit(difficulty):
-    return randint(0, 10 ** randint(1, difficulty))
+    size = 10 ** randint(1, difficulty)
+    if difficulty > 1:
+        return randint(-size, size)
+    else:
+        return randint(0, size)
 
 
 class ProgramGenerator():
-
-    def __init__(self, batch_size, program_length=2, num_len=2):
+    def __init__(self, batch_size, program_length=1, num_len=1):
         self.program_length = program_length
         self.num_len = num_len
         self.num_len_was_last_inc = False
         self.batch_size = batch_size
 
-    def generate_program(self):
-        return generate_program(num_len=self.num_len,
-                                length=self.program_length)
+    def generate_program(self, hash_mod=None):
+
+        if hash_mod is None:
+            program = generate_program(num_len=self.num_len,
+                                       length=self.program_length)
+        else:
+            program_hash = None
+            while program_hash != hash_mod:
+                program = generate_program(num_len=self.num_len,
+                                           length=self.program_length)
+                program_hash = hash(program) % 2
+        return program
 
     def increase_difficulty(self):
 
@@ -125,21 +134,27 @@ class ProgramGenerator():
 
         # Alternate between increasing program length and number length
         if self.num_len_was_last_inc:
-            self.program_length += 1
+            if self.num_len < MAX_PROGRAM_LENGTH:
+                self.program_length += 1
             self.num_len_was_last_inc = False
         else:
-            self.num_len += 1
+            if self.num_len < MAX_NUM_LENGTH:
+                self.num_len += 1
             self.num_len_was_last_inc = True
 
         print("Difficulty:", self.num_len, self.program_length)
 
     def has_max_difficulty(self):
         return self.num_len >= MAX_NUM_LENGTH and \
-            self.program_length >= MAX_PROGRAM_LENGTH
+               self.program_length >= MAX_PROGRAM_LENGTH
 
-    def next_batch(self):
+    def difficulty(self):
+        return (self.num_len, self.program_length)
 
-        programs = [self.generate_program() for _ in range(self.batch_size)]
+    def next_batch(self, validation=False):
+
+        programs = [self.generate_program(hash_mod=0 if validation else 1)
+                    for _ in range(self.batch_size)]
 
         # Execute the programs to get the targets
         results = []
@@ -151,9 +166,10 @@ class ProgramGenerator():
         input_sequences = encode_sequences(programs,
                                            symbol_to_idx=SYMBOL_TO_IDX,
                                            sequence_len=INPUT_SEQ_LEN,
-                                           go_symbol=GO_SYMBOL,
+                                           #go_symbol=GO_SYMBOL,
                                            pad_symbol=PAD_SYMBOL,
-                                           pad_beginning=True)
+                                           pad_beginning=True,
+                                           reverse=True)
         input_sequences = dense_to_one_hot(input_sequences,
                                            num_classes=len(SYMBOL_TO_IDX))
 
