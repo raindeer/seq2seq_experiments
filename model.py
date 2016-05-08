@@ -66,11 +66,11 @@ class Seq2SeqModel:
                                          initializer=tf.random_uniform_initializer(-a, a)) #tf.constant_initializer(0.08)
 
         # seq2seq_outputs is a list of arrays with output_sequence_len: [(batch_size x hidden_units)]
-        seq2seq_outputs, _ = self._init_seq2seq(self.encoder_inputs, self.decoder_inputs, self.cell,
+        decoder_outputs, _ = self._init_seq2seq(self.encoder_inputs, self.decoder_inputs, self.cell,
                                                 feed_previous=not is_training)
 
-        output_logits = [tf.matmul(seq2seq_output, self.w_softmax) + self.b_softmax
-                         for seq2seq_output in seq2seq_outputs]
+        output_logits = [tf.matmul(decoder_output, self.w_softmax) + self.b_softmax
+                         for decoder_output in decoder_outputs]
         self.output_probs = [tf.nn.softmax(logit) for logit in output_logits]
 
         if is_training:
@@ -234,7 +234,7 @@ class Seq2SeqModel:
 
         x, y = data_generator.next_batch(validation=True)
 
-        input_strings = decode_output_sequences(x, symbols=SYMBOLS)
+        # input_strings = decode_output_sequences(x, symbols=SYMBOLS)
         target_strings = decode_output_sequences(y, symbols=SYMBOLS)
 
         model_output = self.predict(x)
@@ -243,4 +243,3 @@ class Seq2SeqModel:
 
         print(target_strings[:7])
         print(pred_strings[:7])
-        #print(self.b_softmax.eval())

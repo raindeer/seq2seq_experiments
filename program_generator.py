@@ -27,9 +27,6 @@ def if_operation(variables, nesting, difficulty):
     compare_variable = choice(list(variables))
     comparator = choice(COMPARATORS)
     compare_value = random_digit(difficulty)
-    #change_variable = choice(list(variables))
-    #change_value = random_digit(difficulty)
-    #operator = choice(OPERATORS)
     code = 'if {0}{1}{2}:'.format(compare_variable,
                                   comparator,
                                   compare_value)
