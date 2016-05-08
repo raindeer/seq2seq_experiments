@@ -44,27 +44,20 @@ class Seq2SeqModel:
         for i in range(output_sequence_len + 1):
             self.decoder_inputs.append(tf.placeholder(tf.float32, shape=(None, num_output_symbols),
                                                       name="decoder_{0}".format(i)))
-        if True:
-            peep = False
-            a = 0.05
-            if num_layers > 1:
-                cells = [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=num_input_symbols,
-                                           initializer=tf.random_uniform_initializer(-a, a))]
-                cells += [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=hidden_units,
-                                            initializer=tf.random_uniform_initializer(-a, a)) for _ in
-                          range(num_layers - 1)]
-                self.cell = rnn_cell.MultiRNNCell(cells)
-            else:
-                self.cell = rnn_cell.LSTMCell(hidden_units, use_peepholes=peep,
-                                              initializer=tf.random_uniform_initializer(-a, a))
+
+        peep = False
+        a = 0.05
+        if num_layers > 1:
+            cells = [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=num_input_symbols,
+                                       initializer=tf.random_uniform_initializer(-a, a))]
+            cells += [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=hidden_units,
+                                        initializer=tf.random_uniform_initializer(-a, a)) for _ in
+                      range(num_layers - 1)]
+            self.cell = rnn_cell.MultiRNNCell(cells)
         else:
-            if num_layers > 1:
-                cells = [rnn_cell.BasicLSTMCell(hidden_units)]
-                cells += [rnn_cell.BasicLSTMCell(hidden_units) for _ in
-                          range(num_layers - 1)]
-                self.cell = rnn_cell.MultiRNNCell(cells)
-            else:
-                self.cell = rnn_cell.BasicLSTMCell(hidden_units)
+            self.cell = rnn_cell.LSTMCell(hidden_units, use_peepholes=peep,
+                                          initializer=tf.random_uniform_initializer(-a, a))
+
 
         a = 0.08
         self.w_softmax = tf.get_variable('w_softmax', shape=(hidden_units, num_output_symbols),
@@ -90,28 +83,10 @@ class Seq2SeqModel:
             self.learning_rate = tf.Variable(DEFAULT_LEARNING_RATE, trainable=False)
 
             train_vars = tf.trainable_variables()
-            # grads = tf.clip_by_global_norm(tf.gradients(self.cost, train_vars), 5.0)
-            # grads = tf.clip_by_norm(tf.gradients(self.cost, train_vars), 5.0)
-            # grads = tf.gradients(self.cost, train_vars)
-
             grads = tf.gradients(self.cost, train_vars)
-            #print(len(grads), train_vars)
-
-            #for grad in grads:
-            #    tf.histogram_summary(grad.name, grad)
-            #for grad in grads:
-            #    tf.check_numerics(grad, message="Check numerics failed for gradient")
-            # grads = [tf.clip_by_norm(grad, 5.0) for grad in grads]
-
-            if True:
-                optimizer = tf.train.AdamOptimizer(self.learning_rate)
-            else:
-                optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+            optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
             self.train_op = optimizer.apply_gradients(zip(grads, train_vars))
-
-            #self.summary_op = tf.merge_all_summaries(key='summaries')
-            #self.train_writer = tf.train.SummaryWriter('summary/', session.graph)
 
     def _init_seq2seq(self, encoder_inputs, decoder_inputs, cell, feed_previous):
 
@@ -122,12 +97,11 @@ class Seq2SeqModel:
         loop_function = inference_loop_function if feed_previous else None
 
         with variable_scope.variable_scope('seq2seq'):
-            _, enc_state = rnn.rnn(cell, encoder_inputs, dtype=dtypes.float32)
-            return seq2seq.rnn_decoder(decoder_inputs, enc_state, cell, loop_function=loop_function)
+            _, final_enc_state = rnn.rnn(cell, encoder_inputs, dtype=dtypes.float32)
+            return seq2seq.rnn_decoder(decoder_inputs, final_enc_state, cell, loop_function=loop_function)
 
     def set_learning_rate(self, learning_rate):
         self.session.run(tf.assign(self.learning_rate, learning_rate))
-        # self.learning_rate.assign(learning_rate).run()
 
     def init_variables(self):
         tf.initialize_all_variables().run()
@@ -148,9 +122,6 @@ class Seq2SeqModel:
             input_feed[decoder_input.name] = targets[:, i]
 
         train_loss, _ = self.session.run([self.cost, self.train_op], feed_dict=input_feed)
-
-        #summary_str = self.session.run(self.summary_op, feed_dict=input_feed)
-        #self.summary_writer.add_summary(summary_str, step)
 
         return train_loss
 
