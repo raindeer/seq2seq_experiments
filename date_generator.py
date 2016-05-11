@@ -19,10 +19,9 @@ INPUT_FORMATS = ['%Y %B, %d',
 
 OUTPUT_FORMAT = '%Y-%m-%d'
 
-GO_SYMBOL = 'G'
 PAD_SYMBOL = '_'
 LETTERS = string.ascii_lowercase + string.digits + ',- .:/'
-SYMBOLS = [GO_SYMBOL, PAD_SYMBOL] + list(LETTERS)
+SYMBOLS = [PAD_SYMBOL] + list(LETTERS)
 SYMBOL_TO_IDX = dict((l, i) for i, l in enumerate(SYMBOLS))
 
 INPUT_SEQ_LEN = 20
@@ -49,19 +48,22 @@ def format_date(date, random_format=False):
     return date.strftime(date_format).lower()
 
 
-def generate_data(batch_size=32, random_format=False):
+class DateGenerator():
+    def __init__(self, batch_size, output_format=OUTPUT_FORMAT, random_format=False):
+        self.batch_size = batch_size
+        self.output_format = output_format
+        self.random_format = False
 
-    while True:
-
-        datetimes = [random_datetime() for _ in range(batch_size)]
-        input_date_strings = [format_date(dt, random_format=random_format) for dt in datetimes]
-        target_date_strings = [dt.strftime(OUTPUT_FORMAT) for dt in datetimes]
+    def next_batch(self, validation=False):
+        datetimes = [random_datetime() for _ in range(self.batch_size)]
+        input_date_strings = [format_date(dt, random_format=self.random_format) for dt in datetimes]
+        target_date_strings = [dt.strftime(self.output_format) for dt in datetimes]
 
         input_sequences = encode_sequences(input_date_strings,
                                            symbol_to_idx=SYMBOL_TO_IDX,
                                            sequence_len=INPUT_SEQ_LEN,
                                            pad_symbol=PAD_SYMBOL,
-                                           go_symbol=GO_SYMBOL,
+                                           go_symbol=None,
                                            pad_beginning=True,
                                            reverse=True)
         input_sequences = dense_to_one_hot(input_sequences,
@@ -76,4 +78,10 @@ def generate_data(batch_size=32, random_format=False):
         target_sequences = dense_to_one_hot(target_sequences,
                                             num_classes=len(SYMBOL_TO_IDX))
 
-        yield input_sequences, target_sequences
+        return input_sequences, target_sequences
+
+    def has_max_difficulty(self):
+        return True
+
+    def difficulty(self):
+        return 1
