@@ -17,38 +17,26 @@ data_generator = ProgramGenerator(batch_size=training_batch_size, program_length
 
 with tf.device('/gpu:0'):
     with tf.Session() as session:
+
         print("Building model")
+        model = Seq2SeqModel(session=session,
+                             hidden_units=hidden_units,
+                             num_layers=num_layers,
+                             input_sequence_len=INPUT_SEQ_LEN,
+                             output_sequence_len=OUTPUT_SEQ_LEN,
+                             num_input_symbols=num_symbols,
+                             num_output_symbols=num_symbols,
+                             batch_size=training_batch_size,
+                             is_training=True,
+                             scope='model')
 
-        with tf.variable_scope('model', reuse=None):
-            training_model = Seq2SeqModel(session=session,
-                                          hidden_units=hidden_units,
-                                          num_layers=num_layers,
-                                          input_sequence_len=INPUT_SEQ_LEN,
-                                          output_sequence_len=OUTPUT_SEQ_LEN,
-                                          num_input_symbols=num_symbols,
-                                          num_output_symbols=num_symbols,
-                                          batch_size=training_batch_size,
-                                          is_training=True)
-
-        training_model.init_variables()
-
-        with tf.variable_scope('model', reuse=True):
-            testing_model = Seq2SeqModel(session=session,
-                                         hidden_units=hidden_units,
-                                         num_layers=num_layers,
-                                         input_sequence_len=INPUT_SEQ_LEN,
-                                         output_sequence_len=OUTPUT_SEQ_LEN,
-                                         num_input_symbols=num_symbols,
-                                         num_output_symbols=num_symbols,
-                                         batch_size=training_batch_size,
-                                         is_training=False)
+        model.init_variables()
 
         print("Finished building model")
 
-        training_model.fit(data_generator,
-                           testing_model=testing_model,
-                           num_epochs=num_epochs,
-                           batches_per_epoch=batches_per_epoch,
-                           num_val_batches=num_val_batches)
+        model.fit(data_generator,
+                  num_epochs=num_epochs,
+                  batches_per_epoch=batches_per_epoch,
+                  num_val_batches=num_val_batches)
 
         print("Finished training")
