@@ -20,11 +20,11 @@ Target: -71
 Model prediction: -71
 ```
 
-The program generation code i simplified compared to the original paper.
+The program generation code is simplified compared to the original paper but can easily be extended.
 
 ## Date normalization
 
-date-normalize.ipynb also contains a simple date format normalization model using the same model code.
+date-normalization.ipynb also contains a simple date format normalization example using the same model code.
 
 ## PyCon Sweden
 This work was presented at PyCon Sweden 2016, Stockholm.
